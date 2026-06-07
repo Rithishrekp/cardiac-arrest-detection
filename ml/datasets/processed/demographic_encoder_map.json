@@ -1,0 +1,20 @@
+{
+  "Race": {
+    "classes": [
+      "African",
+      "Asian",
+      "Caucasian",
+      "Latin",
+      "Race",
+      "nan"
+    ],
+    "encoded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  }
+}
