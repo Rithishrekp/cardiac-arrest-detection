@@ -5,4 +5,7 @@ scikit-learn
 seaborn
 scipy
 xgboost
+lightgbm
 openpyxl
+joblib
+torch>=1.9.0

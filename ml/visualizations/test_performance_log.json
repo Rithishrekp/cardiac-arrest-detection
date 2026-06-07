@@ -1,0 +1,14 @@
+{
+  "test_precision_weighted": 0.7723889555822328,
+  "test_recall_weighted": 0.52,
+  "test_f1_weighted": 0.5864314789687924,
+  "test_f1_macro": 0.45725915875169604,
+  "test_precision_binary": 0.17647058823529413,
+  "test_recall_binary": 0.6,
+  "test_f1_binary": 0.2727272727272727,
+  "test_auroc_macro": 0.5427450980392157,
+  "test_auprc_macro": 0.1886123569704152,
+  "test_sensitivity_at_7pct_far": 0.06666666666666667,
+  "test_threshold_at_7pct_far": 0.9721435922050204,
+  "test_far_actual_at_threshold": 0.011764705882352941
+}

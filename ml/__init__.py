@@ -2,7 +2,10 @@ from ml.preprocessing import predict_preprocess, detect_preprocess
 from ml.feature_engineering import predict_features, detect_features
 
 try:
-    from ml.model_training import train_prediction_model, train_detection_model
+    from ml.model_training import (
+        train_prediction_model,
+        train_detection_model,
+    )
 except ImportError:
     train_prediction_model = None
     train_detection_model = None
