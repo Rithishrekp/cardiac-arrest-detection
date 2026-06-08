@@ -1,0 +1,14 @@
+{
+  "best_lightgbm_precision_weighted": 0.5625,
+  "best_lightgbm_recall_weighted": 0.75,
+  "best_lightgbm_f1_weighted": 0.6428571428571428,
+  "best_lightgbm_f1_macro": 0.42857142857142855,
+  "best_lightgbm_precision_binary": 0.0,
+  "best_lightgbm_recall_binary": 0.0,
+  "best_lightgbm_f1_binary": 0.0,
+  "best_lightgbm_auroc_macro": 0.9444444444444444,
+  "best_lightgbm_auprc_macro": 0.75,
+  "best_lightgbm_sensitivity_at_7pct_far": 0.0,
+  "best_lightgbm_threshold_at_7pct_far": Infinity,
+  "best_lightgbm_far_actual_at_threshold": 0.0
+}

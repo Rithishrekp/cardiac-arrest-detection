@@ -1,0 +1,14 @@
+{
+  "best_xgboost_precision_weighted": 1.0,
+  "best_xgboost_recall_weighted": 1.0,
+  "best_xgboost_f1_weighted": 1.0,
+  "best_xgboost_f1_macro": 1.0,
+  "best_xgboost_precision_binary": 1.0,
+  "best_xgboost_recall_binary": 1.0,
+  "best_xgboost_f1_binary": 1.0,
+  "best_xgboost_auroc_macro": 1.0,
+  "best_xgboost_auprc_macro": 1.0,
+  "best_xgboost_sensitivity_at_7pct_far": 1.0,
+  "best_xgboost_threshold_at_7pct_far": 0.6144853830337524,
+  "best_xgboost_far_actual_at_threshold": 0.0
+}

@@ -193,7 +193,7 @@ def _load_detection_model(model_dir: str) -> tuple[Any, dict[str, Any]]:
     """
     try:
         import torch
-    except ImportError:
+    except Exception:
         return None, {}
 
     pt_files = [f for f in os.listdir(model_dir) if f.endswith(".pt")]
@@ -244,7 +244,7 @@ class CardiacAssessmentEngine:
                 import torch
                 self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 self._detection_model.to(self._device)
-            except ImportError:
+            except Exception:
                 pass
 
         self._loaded = (
@@ -293,7 +293,7 @@ class CardiacAssessmentEngine:
 
         try:
             import torch
-        except ImportError:
+        except Exception:
             return {"prob": 0.5, "class": -1, "error": "torch_not_available"}
 
         x = ecg.astype(np.float32)

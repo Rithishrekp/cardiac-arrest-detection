@@ -12,7 +12,7 @@ try:
         FocalLoss,
         CNNBiLSTM,
     )
-except ImportError:
+except Exception:
     train_cnnbilstm = None
     train_bilstm = None
     prepare_ecg_windows = None

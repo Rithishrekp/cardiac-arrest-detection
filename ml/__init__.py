@@ -6,19 +6,24 @@ try:
         train_prediction_model,
         train_detection_model,
     )
-except ImportError:
+except Exception:
     train_prediction_model = None
     train_detection_model = None
 
 try:
     from ml.model_evaluation import evaluate_metrics
-except ImportError:
+except Exception:
     evaluate_metrics = None
 
 try:
     from ml.inference import realtime_inference_engine
-except ImportError:
+except Exception:
     realtime_inference_engine = None
+
+try:
+    from ml.visualizations import run_correlation_analysis
+except Exception:
+    run_correlation_analysis = None
 
 __all__ = [
     "predict_preprocess",
@@ -29,4 +34,5 @@ __all__ = [
     "train_detection_model",
     "evaluate_metrics",
     "realtime_inference_engine",
+    "run_correlation_analysis",
 ]

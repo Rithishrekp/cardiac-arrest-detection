@@ -9,7 +9,7 @@ import numpy as np
 try:
     import torch
     import torch.nn.functional as F
-except ImportError:
+except Exception:
     torch = None
     F = None
 

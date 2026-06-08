@@ -156,6 +156,10 @@ def clean_static_data(
         df["MAP"] = (df["SysBP"] + 2.0 * df["DiaBP"]) / 3.0
         df["MAP"] = df["MAP"].astype(np.float32)
 
+    if "Weight" in df.columns and "Height" in df.columns:
+        df["BMI"] = df["Weight"] / ((df["Height"] / 100.0) ** 2)
+        df["BMI"] = df["BMI"].astype(np.float32)
+
     df = df.fillna(fill_value)
     df = df.drop_duplicates()
 
