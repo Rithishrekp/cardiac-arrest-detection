@@ -5,35 +5,35 @@
   --font-body: 'Inter', system-ui, sans-serif;
   --font-heading: 'Plus Jakarta Sans', 'Inter', sans-serif;
 
-  --bg: #f0f4f8;
-  --bg-card: #ffffff;
-  --border: #e2e8f0;
-  --border-focus: #3b82f6;
+  --bg: #f3f7fa;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --border: rgba(226, 232, 240, 0.8);
+  --border-focus: #2563eb;
 
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
 
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
-  --primary-light: rgba(37, 99, 235, 0.08);
+  --primary-light: rgba(37, 99, 235, 0.06);
 
   --teal: #0d9488;
   --purple: #7c3aed;
 
   --risk-normal: #10b981;
-  --risk-medium: #f59e0b;
+  --risk-medium: #d97706;
   --risk-critical: #ef4444;
 
-  --radius: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.12);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.09);
 
-  --navbar-height: 64px;
+  --navbar-height: 70px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,7 +45,9 @@ body {
   font-size: 15px;
   line-height: 1.6;
   color: var(--text-primary);
-  background: var(--bg);
+  background: linear-gradient(rgba(243, 247, 250, 0.88), rgba(243, 247, 250, 0.94)),
+              url('/src/assets/cardiac_background.png') no-repeat center center fixed;
+  background-size: cover;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -87,8 +89,10 @@ body {
   top: 0;
   z-index: 100;
   height: var(--navbar-height);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -167,11 +171,13 @@ body {
 
 /* ── Cards ── */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: var(--radius-lg);
   padding: 24px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .card h2, .card h3 {
@@ -195,14 +201,16 @@ body {
 }
 
 .stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: var(--radius-lg);
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 14px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .stat-icon {

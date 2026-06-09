@@ -8,13 +8,32 @@ class PredictionRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(String, index=True)
     patient_name = Column(String, index=True)
-    age = Column(Integer)
+    age = Column(Float)
     gender = Column(String)
     
-    # ECG inputs
+    # Demographics & Sports Vitals
+    weight = Column(Float)
+    height = Column(Float)
+    bmi = Column(Float)
+    heart_rate = Column(Float)
+    systolic_bp = Column(Float)
+    diastolic_bp = Column(Float)
+    mean_arterial_pressure = Column(Float)
+    sport_type = Column(String)
+    
+    # ECG Interval Metrics
     rr_interval = Column(Float)
     pp_interval = Column(Float)
     qt_interval = Column(Float)
+    qtc_interval = Column(Float)
+    qrs_duration = Column(Float)
+    pq_interval = Column(Float)
+    
+    # Medical & Family History
+    family_history_heart_disease = Column(Float)  # 0.0 or 1.0
+    personal_history_heart_disease = Column(Float)  # 0.0 or 1.0
+    syncope = Column(Float)  # 0.0 or 1.0
+    pectus_excavatum = Column(Float)  # 0.0 or 1.0
     
     # Prediction Outputs
     risk_score = Column(Float)  # 0 to 100

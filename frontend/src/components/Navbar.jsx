@@ -12,7 +12,6 @@ export default function Navbar({ currentPage, onNavigate }) {
         <span className="brand-icon">🫀</span>
         <div>
           <div className="brand-title">CardiacRisk AI</div>
-          <div className="brand-subtitle">NIT Puducherry</div>
         </div>
       </div>
 

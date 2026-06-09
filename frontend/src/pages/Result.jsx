@@ -1,6 +1,29 @@
+import { useEffect, useState } from 'react';
 import RiskCard from '../components/RiskCard';
+import { api } from '../services/api';
 
 export default function Result({ result, onNavigate }) {
+  const [correlations, setCorrelations] = useState([]);
+  const [corrLoading, setCorrLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCorrelations() {
+      try {
+        const data = await api.correlations();
+        // Sort by correlation percentage descending and take top 8
+        const sorted = (data || [])
+          .sort((a, b) => b['Correlation (%)'] - a['Correlation (%)'])
+          .slice(0, 8);
+        setCorrelations(sorted);
+      } catch (err) {
+        console.error('Failed to load correlations:', err);
+      } finally {
+        setCorrLoading(false);
+      }
+    }
+    loadCorrelations();
+  }, []);
+
   if (!result) {
     return (
       <div className="page-body">
@@ -16,7 +39,7 @@ export default function Result({ result, onNavigate }) {
     );
   }
 
-  const { record, suggestions, disclaimer } = result;
+  const { record, suggestions, contributions, disclaimer } = result;
 
   return (
     <div className="animate-fadeIn">
@@ -27,24 +50,98 @@ export default function Result({ result, onNavigate }) {
         </p>
       </div>
 
-      <div className="page-body">
-        <RiskCard
-          record={record}
-          suggestions={suggestions}
-          disclaimer={disclaimer}
-        />
+      <div className="page-body" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '2rem', alignItems: 'start' }}>
+        
+        {/* Main Risk Output Cards (Risk Meter, Details, Suggestions) */}
+        <div>
+          <RiskCard
+            record={record}
+            suggestions={suggestions}
+            contributions={contributions}
+            disclaimer={disclaimer}
+          />
 
-        <div className="result-actions">
-          <button className="btn btn-secondary" onClick={() => onNavigate('predict')}>
-            ← New Assessment
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => onNavigate('history')}
-          >
-            View History →
-          </button>
+          <div className="result-actions" style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
+            <button className="btn btn-secondary" onClick={() => onNavigate('predict')}>
+              ← New Assessment
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => onNavigate('history')}
+            >
+              View History Database →
+            </button>
+          </div>
         </div>
+
+        {/* Dataset-level Correlation Dashboard */}
+        <aside className="correlation-dashboard-sidebar">
+          <div className="card" style={{ padding: '1.5rem', position: 'sticky', top: '20px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              📊 Dataset Correlation Dashboard
+            </h3>
+            <p className="form-hint" style={{ marginBottom: '1.25rem' }}>
+              Dataset-wide correlations between ECG intervals and `CardiacRisk_Encoded` based on 22,648 integrated patient records.
+            </p>
+
+            {corrLoading ? (
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <span className="spinner spinner-sm" /> Loading correlation index...
+              </div>
+            ) : correlations.length > 0 ? (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                      <th style={{ padding: '0.5rem 0.25rem' }}>Feature</th>
+                      <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Corr (%)</th>
+                      <th style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>Strength</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {correlations.map((c, idx) => {
+                      let badgeColor = '#6b7280'; // gray
+                      if (c.strength === 'Very Strong') badgeColor = '#ef4444'; // red
+                      if (c.strength === 'Strong') badgeColor = '#f59e0b'; // orange
+                      if (c.strength === 'Moderate') badgeColor = '#3b82f6'; // blue
+                      if (c.strength === 'Weak') badgeColor = '#10b981'; // green
+
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '0.5rem 0.25rem', fontWeight: '500' }}>{c.feature}</td>
+                          <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>
+                            {c['Correlation (%)'] ? c['Correlation (%)'].toFixed(1) : '0.0'}%
+                          </td>
+                          <td style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>
+                            <span 
+                              style={{ 
+                                display: 'inline-block', 
+                                padding: '0.15rem 0.4rem', 
+                                borderRadius: '4px', 
+                                fontSize: '0.75rem', 
+                                color: '#fff', 
+                                background: badgeColor,
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {c.strength}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="info-note" style={{ fontSize: '0.75rem', margin: 0, padding: '0.5rem', background: 'var(--bg)', borderRadius: '4px' }}>
+                  * Pearson values calculated using linear regression statistics.
+                </p>
+              </div>
+            ) : (
+              <p>No correlation data available.</p>
+            )}
+          </div>
+        </aside>
+
       </div>
     </div>
   );

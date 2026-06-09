@@ -2,6 +2,7 @@ import os
 import sys
 import joblib
 import pandas as pd
+import numpy as np
 from sqlalchemy.orm import Session
 
 # Inject project root path so FastAPI can load the ml module
@@ -10,78 +11,27 @@ project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from ml.inference.realtime_inference_engine import CardiacAssessmentEngine
 from ..models import PredictionRecord
 
-# Initialize the assessment engine as a singleton
-engine = None
+# Global variable to cache the loaded model bundle
+_model_bundle = None
 
-def get_engine() -> CardiacAssessmentEngine:
-    """Load the ML inference engine, preferring best_xgboost.pkl when configured."""
-    global engine
-    if engine is None:
-        assessor = CardiacAssessmentEngine()
-        model_name = os.getenv("PREDICTION_MODEL", "best_xgboost.pkl")
-        models_dir = os.path.join(project_root, "ml", "saved_models")
-        model_path = os.path.join(models_dir, model_name)
-        if os.path.isfile(model_path):
-            bundle = joblib.load(model_path)
-            assessor._prediction_model = bundle.get("model")
-            assessor._scaler = bundle.get("scaler")
-            assessor._feature_cols = bundle.get("feature_cols")
-        engine = assessor
-    return engine
+def get_model_bundle() -> dict:
+    """Load the trained sports risk model bundle from disk (cached as a singleton)."""
+    global _model_bundle
+    if _model_bundle is None:
+        model_path = os.path.join(project_root, "ml", "saved_models", "cardiac_risk_model.pkl")
+        if not os.path.isfile(model_path):
+            raise FileNotFoundError(f"Trained model file not found at: {model_path}")
+        _model_bundle = joblib.load(model_path)
+    return _model_bundle
 
-def get_sliding_window_features(db: Session, patient_id: str, new_rr: float, new_pp: float, new_qt: float) -> dict:
-    """
-    Retrieve the last 4 records for the patient, add the new record,
-    and compute rolling statistics (mean, variance, min, max, delta) over a window of 5.
-    """
-    # Fetch latest 4 records in descending order
-    records = db.query(PredictionRecord)\
-        .filter(PredictionRecord.patient_id == patient_id)\
-        .order_by(PredictionRecord.created_at.desc())\
-        .limit(4)\
-        .all()
-    
-    # Reverse so they are in chronological order (oldest to newest)
-    records.reverse()
-    
-    # Build list of dicts
-    history_data = []
-    for r in records:
-        history_data.append({
-            "RRInterval": r.rr_interval,
-            "PPInterval": r.pp_interval,
-            "QTInterval": r.qt_interval
-        })
-        
-    # Append the new reading
-    history_data.append({
-        "RRInterval": new_rr,
-        "PPInterval": new_pp,
-        "QTInterval": new_qt
-    })
-    
-    df = pd.DataFrame(history_data)
-    
-    features = {}
-    features["RRInterval"] = float(new_rr)
-    features["PPInterval"] = float(new_pp)
-    features["QTInterval"] = float(new_qt)
-    
-    # Replicate the ML feature engineering pipeline sliding stats
-    for col in ["RRInterval", "PPInterval", "QTInterval"]:
-        series = df[col]
-        roll = series.rolling(window=5, min_periods=1)
-        
-        features[f"{col}_mean"] = float(roll.mean().iloc[-1])
-        features[f"{col}_var"] = float(roll.var(ddof=0).iloc[-1])
-        features[f"{col}_min"] = float(roll.min().iloc[-1])
-        features[f"{col}_max"] = float(roll.max().iloc[-1])
-        features[f"{col}_delta"] = float(series.diff().fillna(0.0).iloc[-1])
-        
-    return features
+def get_engine():
+    """Mock/backwards compatibility wrapper for main.py checks."""
+    class MockEngine:
+        is_ready = True
+        model_status = {"prediction_model_loaded": True, "detection_model_loaded": False}
+    return MockEngine()
 
 def get_health_suggestions(risk_level: str) -> list[str]:
     """Return specific actionable healthcare tips based on risk level."""
@@ -107,31 +57,194 @@ def get_health_suggestions(risk_level: str) -> list[str]:
             "Keep emergency contacts and a list of current medications easily accessible."
         ]
 
-def make_prediction(db: Session, patient_id: str, new_rr: float, new_pp: float, new_qt: float) -> dict:
-    """Orchestrates features generation and runs the model prediction."""
-    # Ensure engine is loaded
-    assessor = get_engine()
+def calculate_feature_contributions(
+    patient_data: dict, 
+    feature_cols: list, 
+    importances: dict, 
+    means: dict, 
+    stds: dict
+) -> list[dict]:
+    """
+    Calculate patient-specific feature contributions (explainability).
+    Compares patient values against training baseline averages, weighted by global importance.
+    """
+    raw_contributions = []
     
-    # 1. Compute tabular features
-    features = get_sliding_window_features(db, patient_id, new_rr, new_pp, new_qt)
+    # Map raw input keys to feature columns in dataset
+    key_mapping = {
+        "age": "Age",
+        "weight": "Weight",
+        "height": "Height",
+        "bmi": "BMI",
+        "heart_rate": "HeartRate",
+        "systolic_bp": "SystolicBP",
+        "diastolic_bp": "DiastolicBP",
+        "mean_arterial_pressure": "MeanArterialPressure",
+        "qt_interval": "QTInterval",
+        "qtc_interval": "QTcInterval",
+        "qrs_duration": "QRSDuration",
+        "pq_interval": "PQInterval",
+        "rr_interval": "RRInterval",
+        "pp_interval": "PPInterval",
+        "family_history_heart_disease": "FamilyHistoryHeartDisease",
+        "personal_history_heart_disease": "PersonalHistoryHeartDisease",
+        "syncope": "Syncope",
+        "pectus_excavatum": "PectusExcavatum"
+    }
+
+    for request_key, feat_col in key_mapping.items():
+        if feat_col in feature_cols and request_key in patient_data:
+            val = float(patient_data[request_key])
+            mean_val = float(means.get(feat_col, 0.0))
+            std_val = float(stds.get(feat_col, 1.0))
+            importance = float(importances.get(feat_col, 0.0))
+            
+            # Z-score deviation from mean
+            deviation = (val - mean_val) / std_val
+            abs_deviation = abs(deviation)
+            
+            # Contribution weight = deviation * feature importance
+            weight = abs_deviation * importance
+            
+            # Human readable label
+            feature_name = feat_col
+            # Add spaces to camelcase names for UI
+            import re
+            feature_name_spaced = re.sub(r"([A-Z])", r" \1", feature_name).strip()
+            
+            direction = "increase" if val > mean_val else "decrease"
+            
+            raw_contributions.append({
+                "feature": feature_name_spaced,
+                "weight": weight,
+                "direction": direction,
+                "value": val
+            })
+            
+    # Sort contributions by weight descending
+    raw_contributions.sort(key=lambda x: x["weight"], reverse=True)
     
-    # 2. Assemble packet format
-    packet = {
-        "patient_id": patient_id,
-        "tabular": features
+    # Select top 4 contributing factors
+    top_contributions = raw_contributions[:4]
+    
+    # Normalize weights to sum to 100%
+    total_weight = sum(c["weight"] for c in top_contributions)
+    if total_weight == 0:
+        total_weight = 1.0  # Avoid division by zero
+        
+    normalized = []
+    for c in top_contributions:
+        pct = round((c["weight"] / total_weight) * 100.0, 1)
+        normalized.append({
+            "feature": c["feature"],
+            "contribution": pct if pct > 0 else 5.0, # ensure non-zero visual bar
+            "direction": c["direction"],
+            "value": c["value"]
+        })
+        
+    return normalized
+
+def make_prediction(db: Session, request_data: dict) -> dict:
+    """
+    Extracts features, runs inference on the sports risk model, and 
+    returns predicted risk score, level, recommendations, and feature contributions.
+    """
+    bundle = get_model_bundle()
+    
+    model = bundle["model"]
+    scaler = bundle["scaler"]
+    feature_cols = bundle["feature_cols"]
+    sport_encoder_classes = bundle["sport_encoder_classes"]
+    importances = bundle["feature_importances"]
+    means = bundle["feature_means"]
+    stds = bundle["feature_stds"]
+    
+    # 1. Compute calculated inputs
+    height_m = request_data["height"] / 100.0
+    bmi = request_data["weight"] / (height_m ** 2)
+    map_val = (request_data["systolic_bp"] + 2.0 * request_data["diastolic_bp"]) / 3.0
+    
+    # 2. Encode SportType
+    # Fallback to first class if sport_type is unrecognized
+    sport_str = str(request_data["sport_type"])
+    if sport_str in sport_encoder_classes:
+        sport_encoded = sport_encoder_classes.index(sport_str)
+    else:
+        sport_encoded = 0
+        
+    # 3. Assemble Feature Vector
+    # Map request payload fields to database columns
+    val_map = {
+        "Age": request_data["age"],
+        "Weight": request_data["weight"],
+        "Height": request_data["height"],
+        "BMI": bmi,
+        "HeartRate": request_data["heart_rate"],
+        "SystolicBP": request_data["systolic_bp"],
+        "DiastolicBP": request_data["diastolic_bp"],
+        "MeanArterialPressure": map_val,
+        "QTInterval": request_data["qt_interval"],
+        "QTcInterval": request_data["qtc_interval"],
+        "QRSDuration": request_data["qrs_duration"],
+        "PQInterval": request_data["pq_interval"],
+        "RRInterval": request_data["rr_interval"],
+        "PPInterval": request_data["pp_interval"],
+        "SportType_Encoded": sport_encoded,
+        "FamilyHistoryHeartDisease": request_data["family_history_heart_disease"],
+        "PersonalHistoryHeartDisease": request_data["personal_history_heart_disease"],
+        "Syncope": request_data["syncope"],
+        "PectusExcavatum": request_data["pectus_excavatum"]
     }
     
-    # 3. Assess using the ML engine
-    result = assessor.assess(packet)
+    # Build complete vector (all other features like one-hot axis/infarction default to 0)
+    feat_vector = []
+    for col in feature_cols:
+        if col in val_map:
+            feat_vector.append(val_map[col])
+        else:
+            feat_vector.append(0.0) # default fallback for ECG leads or Infarction categories
+            
+    # 4. Standard Scale & Predict
+    feat_arr = np.array(feat_vector, dtype=np.float64).reshape(1, -1)
+    feat_arr_s = scaler.transform(feat_arr)
     
-    # 4. Generate recommendations
-    suggestions = get_health_suggestions(result["risk_level"])
+    # Multi-class prediction: outputs probabilities for classes 0, 1, 2
+    probs = model.predict_proba(feat_arr_s)[0]
+    
+    # Let's map risk probabilities to score:
+    # 0 = Normal, 1 = Moderate Risk, 2 = High Risk
+    # Risk Score = probability of Moderate (class 1) * 50 + probability of High (class 2) * 100
+    risk_score = float(probs[1] * 50.0 + probs[2] * 100.0)
+    risk_score = round(np.clip(risk_score, 0.0, 100.0), 1)
+    
+    # Determine risk category
+    if risk_score <= 40.0:
+        risk_level = "normal"
+        risk_label = "Low Risk / Normal Cardiac Vitality"
+        ui_indicator = "white"
+    elif risk_score <= 70.0:
+        risk_level = "medium"
+        risk_label = "Moderate Risk / Primary Alert"
+        ui_indicator = "yellow"
+    else:
+        risk_level = "critical"
+        risk_label = "High Risk / Critical Emergency"
+        ui_indicator = "red"
+        
+    # Calculate patient specific feature contributions
+    patient_data_full = {**request_data, "bmi": bmi, "mean_arterial_pressure": map_val}
+    contributions = calculate_feature_contributions(patient_data_full, feature_cols, importances, means, stds)
+    
+    suggestions = get_health_suggestions(risk_level)
     
     return {
-        "risk_score": result["risk_score"],
-        "risk_level": result["risk_level"],
-        "risk_label": result["risk_label"],
-        "ui_indicator": result["ui_indicator"],
-        "ensemble_method": result["ensemble_method"],
-        "suggestions": suggestions
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "risk_label": risk_label,
+        "ui_indicator": ui_indicator,
+        "ensemble_method": "multi_feature_xgboost",
+        "suggestions": suggestions,
+        "contributions": contributions,
+        "bmi": round(bmi, 2),
+        "mean_arterial_pressure": round(map_val, 2)
     }

@@ -6,24 +6,54 @@ from typing import Optional, List
 class PredictionRequest(BaseModel):
     patient_id: str = Field(..., description="Unique Patient Identifier/MRN")
     patient_name: str = Field(..., description="Full Name of Patient")
-    age: int = Field(..., ge=1, le=120, description="Age of Patient in years")
+    age: float = Field(..., ge=1, le=120, description="Age of Patient in years")
     gender: str = Field(..., description="Gender (e.g. Male, Female, Other)")
 
-    # ECG inputs (in milliseconds)
-    rr_interval: float = Field(..., ge=1.0, description="RR Interval in ms")
-    pp_interval: float = Field(..., ge=1.0, description="PP Interval in ms")
-    qt_interval: float = Field(..., ge=1.0, description="QT Interval in ms")
+    # Demographics & Sports Vitals
+    weight: float = Field(..., ge=5.0, le=300.0, description="Weight in kg")
+    height: float = Field(..., ge=50.0, le=250.0, description="Height in cm")
+    heart_rate: float = Field(..., ge=30.0, le=220.0, description="Heart rate in bpm")
+    systolic_bp: float = Field(..., ge=50.0, le=250.0, description="Systolic Blood Pressure")
+    diastolic_bp: float = Field(..., ge=35.0, le=160.0, description="Diastolic Blood Pressure")
+    sport_type: str = Field(..., description="Sport category type (e.g. ATH, AMF, VOL)")
+
+    # ECG interval inputs
+    rr_interval: float = Field(..., ge=100.0, description="RR Interval in ms")
+    pp_interval: float = Field(..., ge=100.0, description="PP Interval in ms")
+    qt_interval: float = Field(..., ge=100.0, description="QT Interval in ms")
+    qtc_interval: float = Field(..., ge=100.0, description="QTc Interval in ms")
+    qrs_duration: float = Field(..., ge=20.0, description="QRS Duration in ms")
+    pq_interval: float = Field(..., ge=20.0, description="PQ Interval in ms")
+
+    # Medical & Family History (binary flags)
+    family_history_heart_disease: float = Field(0.0, description="Family History of heart disease (0.0 or 1.0)")
+    personal_history_heart_disease: float = Field(0.0, description="Personal History of heart disease (0.0 or 1.0)")
+    syncope: float = Field(0.0, description="Syncope / fainting episodes history (0.0 or 1.0)")
+    pectus_excavatum: float = Field(0.0, description="Pectus Excavatum skeletal issue (0.0 or 1.0)")
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "patient_id": "P-1001",
                 "patient_name": "Ramesh Kumar",
-                "age": 45,
+                "age": 45.0,
                 "gender": "Male",
+                "weight": 70.0,
+                "height": 175.0,
+                "heart_rate": 72.0,
+                "systolic_bp": 120.0,
+                "diastolic_bp": 80.0,
+                "sport_type": "ATH",
                 "rr_interval": 1084.0,
                 "pp_interval": 1090.0,
-                "qt_interval": 448.0
+                "qt_interval": 448.0,
+                "qtc_interval": 430.0,
+                "qrs_duration": 96.0,
+                "pq_interval": 160.0,
+                "family_history_heart_disease": 0.0,
+                "personal_history_heart_disease": 0.0,
+                "syncope": 0.0,
+                "pectus_excavatum": 0.0
             }
         }
     }
@@ -33,12 +63,29 @@ class PredictionResponse(BaseModel):
     id: int
     patient_id: str
     patient_name: str
-    age: int
+    age: float
     gender: str
+
+    weight: Optional[float] = 0.0
+    height: Optional[float] = 0.0
+    bmi: Optional[float] = 0.0
+    heart_rate: Optional[float] = 0.0
+    systolic_bp: Optional[float] = 0.0
+    diastolic_bp: Optional[float] = 0.0
+    mean_arterial_pressure: Optional[float] = 0.0
+    sport_type: Optional[str] = "ATH"
 
     rr_interval: float
     pp_interval: float
     qt_interval: float
+    qtc_interval: Optional[float] = 0.0
+    qrs_duration: Optional[float] = 0.0
+    pq_interval: Optional[float] = 0.0
+
+    family_history_heart_disease: Optional[float] = 0.0
+    personal_history_heart_disease: Optional[float] = 0.0
+    syncope: Optional[float] = 0.0
+    pectus_excavatum: Optional[float] = 0.0
 
     risk_score: float
     risk_level: str
@@ -50,9 +97,18 @@ class PredictionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+
+class FeatureContribution(BaseModel):
+    feature: str
+    contribution: float
+    direction: str  # "increase" or "decrease" (how the value shifts risk relative to the mean)
+    value: float
+
+
 class PredictionResultResponse(BaseModel):
     record: PredictionResponse
     suggestions: List[str]
+    contributions: List[FeatureContribution] = []
     disclaimer: str = "This is only an ML-based prediction and not a medical diagnosis."
 
 

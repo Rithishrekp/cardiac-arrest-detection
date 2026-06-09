@@ -24,38 +24,20 @@ def run_correlation_analysis(
     programmatically.
     """
     if input_path is None:
-        input_path = os.path.join(_PROCESSED_DIR, "static_features_clean.csv")
+        input_path = os.path.join(_PROCESSED_DIR, "Integrated_Dataset_Final.csv")
     if output_dir is None:
         output_dir = _DEFAULT_OUTPUT_DIR
 
-    if not os.path.exists(input_path):
-        # Trigger preprocessing if processed data is missing
-        from ml.preprocessing.predict_preprocess import clean_static_data
-        clean_static_data()
-
     df = pd.read_csv(input_path)
 
-    # 1. Compute derived features if missing
-    if "BMI" not in df.columns and "Weight" in df.columns and "Height" in df.columns:
-        df["BMI"] = df["Weight"] / ((df["Height"] / 100.0) ** 2)
-    if "MAP" not in df.columns and "SysBP" in df.columns and "DiaBP" in df.columns:
-        df["MAP"] = (df["SysBP"] + 2.0 * df["DiaBP"]) / 3.0
+    # Clean target columns if needed
+    if "CardiacRisk_Encoded" not in df.columns:
+        if "CardiacRisk" in df.columns:
+            risk_mapping = {"Normal": 0, "Moderate Risk": 1, "High Risk": 2, "Unknown": 1}
+            df["CardiacRisk_Encoded"] = df["CardiacRisk"].map(risk_mapping).fillna(1)
+        else:
+            raise ValueError("CardiacRisk_Encoded or CardiacRisk column must be present in the dataset.")
 
-    # 2. Derive CardiacRisk categories and encoded values (Normal: <400, Mod: 400-450, High: >=450)
-    if "QTInterval" in df.columns:
-        qt = pd.to_numeric(df["QTInterval"], errors="coerce").fillna(0)
-        conditions = [
-            qt < 400.0,
-            (qt >= 400.0) & (qt < 450.0),
-            qt >= 450.0
-        ]
-        labels = ["Normal", "Moderate Risk", "High Risk"]
-        df["CardiacRisk"] = np.select(conditions, labels, default="Unknown")
-        
-        risk_mapping = {"Normal": 0, "Moderate Risk": 1, "High Risk": 2, "Unknown": -1}
-        df["CardiacRisk_Encoded"] = df["CardiacRisk"].map(risk_mapping)
-    else:
-        raise ValueError("QTInterval column must be present in the static dataset for correlation analysis.")
 
     # 3. Compute Pearson correlation matrix
     numeric_df = df.select_dtypes(include=np.number)

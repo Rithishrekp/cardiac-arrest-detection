@@ -14,7 +14,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Cardiac Risk & Arrest Prediction API",
-    description="Backend API powering the ML-based Cardiac Risk prediction system for NIT Puducherry.",
+    description="Backend API powering the ML-based Cardiac Risk prediction system.",
     version="1.0.0"
 )
 
@@ -47,7 +47,7 @@ def startup_event():
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to NIT Puducherry Cardiac Risk Prediction API.",
+        "message": "Welcome to Cardiac Risk Prediction API.",
         "docs": "/docs",
         "health": "/health"
     }

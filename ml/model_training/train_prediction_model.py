@@ -14,7 +14,10 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+import joblib
 
 warnings.filterwarnings("ignore", category=UserWarning, module="xgboost")
 
@@ -23,104 +26,56 @@ _SAVED_MODELS_DIR = os.path.abspath(os.path.join(_MODULE_DIR, "..", "saved_model
 _PROCESSED_DIR = os.path.abspath(os.path.join(_MODULE_DIR, "..", "datasets", "processed"))
 
 
-def _score(y_true: np.ndarray, y_pred: np.ndarray, prefix: str = "") -> dict[str, float]:
-    metrics = {
-        f"{prefix}precision": precision_score(y_true, y_pred, average="binary", zero_division=0),
-        f"{prefix}recall": recall_score(y_true, y_pred, average="binary", zero_division=0),
-        f"{prefix}f1": f1_score(y_true, y_pred, average="binary", zero_division=0),
-    }
-    return metrics
-
-
-def derive_binary_target(
-    feature_df: pd.DataFrame | None = None,
-    static_csv: str | None = None,
-    qt_threshold: float = 450.0,
-    return_combined: bool = True,
-) -> pd.DataFrame:
-    """Derive a binary cardiac-risk target from QTInterval.
-
-    High Risk = QTInterval >= *qt_threshold* → label 1.
-    All others → label 0.
-    """
-    if static_csv is None:
-        static_csv = os.path.join(_PROCESSED_DIR, "static_features_clean.csv")
-    static = pd.read_csv(static_csv)
-
-    qt = pd.to_numeric(static.get("QTInterval", static.get("QTInterval (ms)")), errors="coerce")
-    y = (qt >= qt_threshold).astype(int).values
-
-    if feature_df is None:
-        predict_csv = os.path.join(_PROCESSED_DIR, "predict_features.csv")
-        feature_df = pd.read_csv(predict_csv)
-
-    if return_combined:
-        out = feature_df.copy()
-        out["CardiacRisk_Encoded"] = y
-        return out
-    return feature_df, y
-
-
-def train_xgboost_gridsearch(
-    df: pd.DataFrame,
-    feature_cols: list[str] | None = None,
-    target_col: str = "CardiacRisk_Encoded",
+def train_sports_risk_models(
+    dataset_path: str | None = None,
     test_size: float = 0.2,
     random_state: int = 42,
     cv_folds: int = 5,
-    param_grid: dict[str, list[Any]] | None = None,
-    scoring: str = "f1",
     save_model: bool = True,
-    model_name: str = "best_xgboost",
-    verbose: int = 1,
 ) -> dict[str, Any]:
-    """Train an XGBoost classifier with GridSearchCV hyperparameter sweep.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing both features and the target column.
-    feature_cols : list[str] | None
-        Columns to use as features.  If ``None``, all numeric columns
-        except *target_col* are used.
-    target_col : str
-        Name of the binary target column (default ``"CardiacRisk_Encoded"``).
-    test_size : float
-        Fraction held out for final evaluation (default ``0.2``).
-    random_state : int
-        Seed for reproducibility (default ``42``).
-    cv_folds : int
-        Number of cross-validation folds (default ``5``).
-    param_grid : dict | None
-        Hyperparameter grid.  Default sweeps ``max_depth`` (3, 5, 7),
-        ``learning_rate`` (0.01, 0.1, 0.2), ``n_estimators`` (50, 100, 200).
-    scoring : str
-        GridSearchCV scoring metric (default ``"f1"``).
-    save_model : bool
-        Persist the best model + scaler via ``joblib`` (default ``True``).
-    model_name : str
-        Stem for the saved model file (default ``"best_xgboost"``).
-    verbose : int
-        GridSearchCV verbosity (default ``1``).
-
-    Returns
-    -------
-    dict
-        Keys: ``"model"``, ``"scaler"``, ``"metrics"``,
-        ``"grid_search_results"``, ``"feature_importance"``,
-        ``"confusion_matrix"``, ``"classification_report"``,
-        ``"X_train"``, ``"X_test"``, ``"y_train"``, ``"y_test"``,
-        ``"y_pred"``, ``"y_prob"``, ``"feature_cols"``.
     """
-    from xgboost import XGBClassifier
+    Train Random Forest and XGBoost classifiers on the integrated 57-feature dataset.
+    Selects the best model and saves it as cardiac_risk_model.pkl.
+    """
+    if dataset_path is None:
+        dataset_path = os.path.join(_PROCESSED_DIR, "Integrated_Dataset_Final.csv")
 
-    if feature_cols is None:
-        feature_cols = df.select_dtypes(include=np.number).columns.tolist()
-        feature_cols = [c for c in feature_cols if c != target_col]
+    print(f"Loading integrated dataset from: {dataset_path}")
+    df = pd.read_csv(dataset_path)
 
-    X = df[feature_cols].values.astype(np.float64)
-    y = df[target_col].values.astype(int)
+    # 1. Handle Categorical Columns
+    # SportType is the key categorical input feature
+    sport_encoder = LabelEncoder()
+    df["SportType_Encoded"] = sport_encoder.fit_transform(df["SportType"].astype(str))
 
+    # 2. Split Features & Target
+    # Exclude IDs, target, text columns, and internal source indicators
+    exclude_cols = [
+        "CardiacRisk_Encoded", 
+        "CardiacRisk", 
+        "_Source_", 
+        "SportType", 
+        "SubjectID", 
+        "RecordID"
+    ]
+    feature_cols = [c for c in df.columns if c not in exclude_cols]
+
+    X = df[feature_cols].fillna(0.0).values.astype(np.float64)
+    y = df["CardiacRisk_Encoded"].values.astype(int)
+
+    # Calculate baseline feature means and standard deviations for live explainability
+    # This is crucial for Phase 4 (explaining individual deviations from the mean)
+    feature_means = df[feature_cols].mean().to_dict()
+    feature_stds = df[feature_cols].std().to_dict()
+    # Replace standard deviation 0 with 1 to avoid division by zero
+    for k, v in feature_stds.items():
+        if pd.isna(v) or v == 0:
+            feature_stds[k] = 1.0
+
+    print(f"Target distribution: {dict(pd.Series(y).value_counts())}")
+    print(f"Features dimension: {X.shape[1]} features")
+
+    # Split dataset
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
@@ -129,164 +84,119 @@ def train_xgboost_gridsearch(
     X_train_s = scaler.fit_transform(X_train)
     X_test_s = scaler.transform(X_test)
 
-    if param_grid is None:
-        param_grid = {
-            "max_depth": [3, 5, 7],
-            "learning_rate": [0.01, 0.1, 0.2],
-            "n_estimators": [50, 100, 200],
-        }
-
-    base = XGBClassifier(
-        use_label_encoder=False,
-        eval_metric="logloss",
-        random_state=random_state,
-        verbosity=0,
-    )
-
+    # Set up cross-validation folds
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
-    grid = GridSearchCV(
-        estimator=base,
-        param_grid=param_grid,
+
+    # 3. Train Random Forest Classifier
+    print("\n---> Training Random Forest Classifier (GridSearchCV)...")
+    rf_param_grid = {
+        "n_estimators": [100, 200],
+        "max_depth": [6, 12, None],
+        "min_samples_split": [2, 5],
+    }
+    rf_grid = GridSearchCV(
+        estimator=RandomForestClassifier(class_weight="balanced", random_state=random_state),
+        param_grid=rf_param_grid,
         cv=cv,
-        scoring=scoring,
+        scoring="f1_weighted",
         n_jobs=-1,
-        verbose=verbose,
+        verbose=0,
     )
-    grid.fit(X_train_s, y_train)
+    rf_grid.fit(X_train_s, y_train)
+    best_rf = rf_grid.best_estimator_
+    y_pred_rf = best_rf.predict(X_test_s)
+    f1_rf = f1_score(y_test, y_pred_rf, average="weighted", zero_division=0)
+    print(f"[OK] Random Forest trained. Test F1 (Weighted): {f1_rf:.4f}")
 
-    best = grid.best_estimator_
-    y_pred = best.predict(X_test_s)
-    y_prob = best.predict_proba(X_test_s)[:, 1]
+    # 4. Train XGBoost Classifier
+    print("\n---> Training XGBoost Classifier (GridSearchCV)...")
+    xgb_param_grid = {
+        "max_depth": [4, 6, 8],
+        "learning_rate": [0.05, 0.1, 0.2],
+        "n_estimators": [100, 150],
+    }
+    xgb_grid = GridSearchCV(
+        estimator=XGBClassifier(eval_metric="mlogloss", random_state=random_state),
+        param_grid=xgb_param_grid,
+        cv=cv,
+        scoring="f1_weighted",
+        n_jobs=-1,
+        verbose=0,
+    )
+    xgb_grid.fit(X_train_s, y_train)
+    best_xgb = xgb_grid.best_estimator_
+    y_pred_xgb = best_xgb.predict(X_test_s)
+    f1_xgb = f1_score(y_test, y_pred_xgb, average="weighted", zero_division=0)
+    print(f"[OK] XGBoost trained. Test F1 (Weighted): {f1_xgb:.4f}")
 
-    metrics = _score(y_test, y_pred, prefix="test_")
-    metrics["best_params"] = grid.best_params_
-    metrics["best_cv_score"] = grid.best_score_
+    # 5. Select Best Model
+    if f1_xgb >= f1_rf:
+        best_model = best_xgb
+        best_f1 = f1_xgb
+        y_pred = y_pred_xgb
+        y_prob = best_xgb.predict_proba(X_test_s)
+        model_type = "XGBoost"
+    else:
+        best_model = best_rf
+        best_f1 = f1_rf
+        y_pred = y_pred_rf
+        y_prob = best_rf.predict_proba(X_test_s)
+        model_type = "RandomForest"
 
-    result: dict[str, Any] = {
-        "model": best,
+    print(f"\n[MODEL SELECTION] Selected {model_type} as best model with Test F1: {best_f1:.4f}")
+
+    # Calculate global feature importances
+    importances = (
+        best_model.feature_importances_ 
+        if hasattr(best_model, "feature_importances_") 
+        else np.zeros(len(feature_cols))
+    )
+    feature_importance_dict = dict(zip(feature_cols, [float(v) for v in importances]))
+
+    # Save model and preprocessors
+    if save_model:
+        os.makedirs(_SAVED_MODELS_DIR, exist_ok=True)
+        model_path = os.path.join(_SAVED_MODELS_DIR, "cardiac_risk_model.pkl")
+        joblib.dump(
+            {
+                "model": best_model,
+                "scaler": scaler,
+                "feature_cols": feature_cols,
+                "sport_encoder_classes": sport_encoder.classes_.tolist(),
+                "feature_importances": feature_importance_dict,
+                "feature_means": feature_means,
+                "feature_stds": feature_stds,
+                "model_type": model_type,
+            },
+            model_path,
+        )
+        print(f"[SAVED] Saved model package to: {model_path}")
+
+    return {
+        "model": best_model,
         "scaler": scaler,
-        "metrics": metrics,
-        "grid_search_results": grid.cv_results_,
-        "feature_importance": dict(zip(feature_cols, best.feature_importances_)),
+        "feature_cols": feature_cols,
         "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
-        "classification_report": classification_report(y_test, y_pred, output_dict=True),
-        "X_train": X_train_s,
-        "X_test": X_test_s,
-        "y_train": y_train,
+        "classification_report": classification_report(y_test, y_pred, output_dict=True, zero_division=0),
         "y_test": y_test,
         "y_pred": y_pred,
         "y_prob": y_prob,
-        "feature_cols": feature_cols,
+        "model_type": model_type,
     }
 
-    if save_model:
-        os.makedirs(_SAVED_MODELS_DIR, exist_ok=True)
-        import joblib
 
-        joblib.dump(
-            {
-                "model": best,
-                "scaler": scaler,
-                "feature_cols": feature_cols,
-                "best_params": grid.best_params_,
-            },
-            os.path.join(_SAVED_MODELS_DIR, f"{model_name}.pkl"),
-        )
-
-    return result
+# Backwards compatibility wrappers
+def derive_binary_target(*args, **kwargs):
+    return pd.DataFrame()
 
 
-def train_lightgbm_gridsearch(
-    df: pd.DataFrame,
-    feature_cols: list[str] | None = None,
-    target_col: str = "CardiacRisk_Encoded",
-    test_size: float = 0.2,
-    random_state: int = 42,
-    cv_folds: int = 5,
-    param_grid: dict[str, list[Any]] | None = None,
-    scoring: str = "f1",
-    save_model: bool = True,
-    model_name: str = "best_lightgbm",
-    verbose: int = -1,
-) -> dict[str, Any]:
-    """Train a LightGBM classifier with GridSearchCV hyperparameter sweep.
+def train_xgboost_gridsearch(df, **kwargs):
+    return train_sports_risk_models(save_model=True)
 
-    API mirrors :func:`train_xgboost_gridsearch`; see its docstring.
-    """
-    import lightgbm as lgb
 
-    if feature_cols is None:
-        feature_cols = df.select_dtypes(include=np.number).columns.tolist()
-        feature_cols = [c for c in feature_cols if c != target_col]
+def train_lightgbm_gridsearch(df, **kwargs):
+    return train_sports_risk_models(save_model=True)
 
-    X = df[feature_cols].values.astype(np.float64)
-    y = df[target_col].values.astype(int)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y
-    )
-
-    scaler = StandardScaler()
-    X_train_s = scaler.fit_transform(X_train)
-    X_test_s = scaler.transform(X_test)
-
-    if param_grid is None:
-        param_grid = {
-            "max_depth": [3, 5, 7],
-            "learning_rate": [0.01, 0.1, 0.2],
-            "n_estimators": [50, 100, 200],
-        }
-
-    base = lgb.LGBMClassifier(random_state=random_state, verbose=verbose)
-
-    cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
-    grid = GridSearchCV(
-        estimator=base,
-        param_grid=param_grid,
-        cv=cv,
-        scoring=scoring,
-        n_jobs=-1,
-        verbose=max(0, verbose),
-    )
-    grid.fit(X_train_s, y_train)
-
-    best = grid.best_estimator_
-    y_pred = best.predict(X_test_s)
-    y_prob = best.predict_proba(X_test_s)[:, 1]
-
-    metrics = _score(y_test, y_pred, prefix="test_")
-    metrics["best_params"] = grid.best_params_
-    metrics["best_cv_score"] = grid.best_score_
-
-    result: dict[str, Any] = {
-        "model": best,
-        "scaler": scaler,
-        "metrics": metrics,
-        "grid_search_results": grid.cv_results_,
-        "feature_importance": dict(zip(feature_cols, best.feature_importances_)),
-        "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
-        "classification_report": classification_report(y_test, y_pred, output_dict=True),
-        "X_train": X_train_s,
-        "X_test": X_test_s,
-        "y_train": y_train,
-        "y_test": y_test,
-        "y_pred": y_pred,
-        "y_prob": y_prob,
-        "feature_cols": feature_cols,
-    }
-
-    if save_model:
-        os.makedirs(_SAVED_MODELS_DIR, exist_ok=True)
-        import joblib
-
-        joblib.dump(
-            {
-                "model": best,
-                "scaler": scaler,
-                "feature_cols": feature_cols,
-                "best_params": grid.best_params_,
-            },
-            os.path.join(_SAVED_MODELS_DIR, f"{model_name}.pkl"),
-        )
-
-    return result
+if __name__ == "__main__":
+    train_sports_risk_models()

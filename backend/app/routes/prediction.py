@@ -32,14 +32,10 @@ def predict_cardiac_risk(request: PredictionRequest, db: Session = Depends(get_d
     Stores the calculation and predictions in the history database.
     """
     try:
-        # 1. Run prediction service (calculates sliding stats, invokes model)
-        pred_out = make_prediction(
-            db=db,
-            patient_id=request.patient_id,
-            new_rr=request.rr_interval,
-            new_pp=request.pp_interval,
-            new_qt=request.qt_interval
-        )
+        request_dict = request.model_dump()
+        
+        # 1. Run prediction service (extracts features, processes inference and SHAP explainability)
+        pred_out = make_prediction(db=db, request_data=request_dict)
         
         # 2. Store prediction request and results in SQLite
         db_record = PredictionRecord(
@@ -47,9 +43,28 @@ def predict_cardiac_risk(request: PredictionRequest, db: Session = Depends(get_d
             patient_name=request.patient_name,
             age=request.age,
             gender=request.gender,
+            
+            weight=request.weight,
+            height=request.height,
+            bmi=pred_out["bmi"],
+            heart_rate=request.heart_rate,
+            systolic_bp=request.systolic_bp,
+            diastolic_bp=request.diastolic_bp,
+            mean_arterial_pressure=pred_out["mean_arterial_pressure"],
+            sport_type=request.sport_type,
+            
             rr_interval=request.rr_interval,
             pp_interval=request.pp_interval,
             qt_interval=request.qt_interval,
+            qtc_interval=request.qtc_interval,
+            qrs_duration=request.qrs_duration,
+            pq_interval=request.pq_interval,
+            
+            family_history_heart_disease=request.family_history_heart_disease,
+            personal_history_heart_disease=request.personal_history_heart_disease,
+            syncope=request.syncope,
+            pectus_excavatum=request.pectus_excavatum,
+            
             risk_score=pred_out["risk_score"],
             risk_level=pred_out["risk_level"],
             risk_label=pred_out["risk_label"],
@@ -65,7 +80,8 @@ def predict_cardiac_risk(request: PredictionRequest, db: Session = Depends(get_d
         
         return {
             "record": response_record,
-            "suggestions": pred_out["suggestions"]
+            "suggestions": pred_out["suggestions"],
+            "contributions": pred_out["contributions"]
         }
         
     except Exception as e:

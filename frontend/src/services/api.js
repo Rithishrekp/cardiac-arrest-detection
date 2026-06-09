@@ -39,4 +39,7 @@ export const api = {
   stats: () => request('/history/stats'),
 
   getRecord: (id) => request(`/history/${id}`),
+
+  correlations: () => request('/history/correlations'),
 };
+

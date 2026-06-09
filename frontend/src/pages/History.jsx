@@ -65,8 +65,10 @@ export default function History({ onNavigate }) {
             <RiskCard
               record={selected.record}
               suggestions={selected.suggestions}
+              contributions={selected.contributions}
               disclaimer={selected.disclaimer}
             />
+
           )}
         </div>
       </div>

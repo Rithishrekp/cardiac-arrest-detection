@@ -4,7 +4,7 @@ export default function About() {
       <div className="page-header">
         <h1 className="page-title">About This Project</h1>
         <p className="page-subtitle">
-          Internship project — National Institute of Technology, Puducherry
+          ML-powered Cardiac Risk Assessment System
         </p>
       </div>
 

@@ -84,7 +84,7 @@ export default function Home({ onNavigate }) {
     <div className="animate-fadeIn">
       <div className="page-header">
         <h1 className="page-title">Cardiac Risk Dashboard</h1>
-        <p className="page-subtitle">Real-time monitoring overview — NIT Puducherry ML Research</p>
+        <p className="page-subtitle">Real-time monitoring overview — ML Research</p>
       </div>
 
       <div className="page-body">
