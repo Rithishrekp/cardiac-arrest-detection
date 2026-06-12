@@ -6,12 +6,23 @@
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 async function request(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.reload();
+    }
     let detail = `Request failed (${res.status})`;
     try {
       const body = await res.json();
@@ -27,6 +38,18 @@ async function request(path, options = {}) {
 
 export const api = {
   health: () => request('/health'),
+
+  login: (email, password) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  register: (email, password, fullName) =>
+    request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    }),
 
   predict: (payload) =>
     request('/predict', { method: 'POST', body: JSON.stringify(payload) }),

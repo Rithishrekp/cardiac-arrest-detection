@@ -1,9 +1,9 @@
 import Navbar from './Navbar';
 
-export default function Layout({ children, currentPage, onNavigate }) {
+export default function Layout({ children, currentPage, onNavigate, user, onLogout }) {
   return (
     <div className="app-shell">
-      <Navbar currentPage={currentPage} onNavigate={onNavigate} />
+      <Navbar currentPage={currentPage} onNavigate={onNavigate} user={user} onLogout={onLogout} />
       <main className="main-content">{children}</main>
       <footer className="app-footer">
         <p>

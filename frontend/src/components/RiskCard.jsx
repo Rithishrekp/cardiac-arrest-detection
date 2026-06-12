@@ -96,7 +96,7 @@ export default function RiskCard({ record, suggestions = [], contributions = [],
           <Detail label="Patient ID" value={record.patient_id} />
           <Detail label="Age" value={`${record.age} years`} />
           <Detail label="Gender" value={record.gender} />
-          <Detail label="Sport" value={record.sport_type} />
+          <Detail label="Subject Type" value={record.person_type === 'gym' ? 'Gym Individual 🏋️' : 'Sports Person 🏃'} />
           
           <Detail label="Weight" value={`${record.weight} kg`} />
           <Detail label="Height" value={`${record.height} cm`} />
@@ -117,6 +117,49 @@ export default function RiskCard({ record, suggestions = [], contributions = [],
           <Detail label="Personal Heart History" value={record.personal_history_heart_disease ? "Yes 🔴" : "No"} />
           <Detail label="Syncope / Fainting" value={record.syncope ? "Yes 🔴" : "No"} />
           <Detail label="Pectus Excavatum" value={record.pectus_excavatum ? "Yes 🔴" : "No"} />
+
+          {/* Upgraded Sports Profiling */}
+          {record.person_type === 'sports' && record.years_sports_experience !== undefined && (
+            <>
+              <Detail label="Sports Experience" value={`${record.years_sports_experience} yrs`} />
+              <Detail label="Weekly Training" value={`${record.training_hours_per_week} hrs`} />
+              <Detail label="Competition Level" value={record.competition_level} />
+            </>
+          )}
+
+          {/* Upgraded Gym Profiling */}
+          {record.person_type === 'gym' && record.workout_frequency !== undefined && (
+            <>
+              <Detail label="Workout Freq" value={`${record.workout_frequency} days/wk`} />
+              <Detail label="Cardio Freq" value={`${record.cardio_frequency} days/wk`} />
+              <Detail label="Heavy Weight Training" value={record.heavy_weight_training ? 'Yes 🔴' : 'No'} />
+            </>
+          )}
+
+          {/* Detailed Symptoms & History Flags */}
+          {record.family_history_cardiac_arrest ? <Detail label="Family Cardiac Arrest" value="Yes 🔴" /> : null}
+          {record.family_history_sudden_death ? <Detail label="Family Sudden Death" value="Yes 🔴" /> : null}
+          {record.hypertension ? <Detail label="Hypertension" value="Yes 🔴" /> : null}
+          {record.diabetes ? <Detail label="Diabetes" value="Yes 🔴" /> : null}
+          {record.known_heart_disease ? <Detail label="Known Heart Disease" value="Yes 🔴" /> : null}
+          {record.congenital_heart_disease ? <Detail label="Congenital Heart Disease" value="Yes 🔴" /> : null}
+          {record.smoking ? <Detail label="Active Smoking" value="Yes 🔴" /> : null}
+          {record.alcohol_consumption ? <Detail label="Alcohol Consumption" value="Yes" /> : null}
+          {record.previous_cardiac_problems ? <Detail label="Past Heart Problems" value="Yes 🔴" /> : null}
+          
+          {record.previous_collapse_during_sports ? <Detail label="Exercise Collapse" value="Yes 🔴" /> : null}
+          {record.chest_pain_during_exercise ? <Detail label="Exercise Chest Pain" value="Yes 🔴" /> : null}
+          {record.loss_of_consciousness_during_exercise ? <Detail label="Exercise Fainting" value="Yes 🔴" /> : null}
+          {record.shortness_of_breath_during_exercise ? <Detail label="Exercise Dyspnea" value="Yes 🔴" /> : null}
+          {record.dizziness_during_exercise ? <Detail label="Exercise Dizziness" value="Yes 🔴" /> : null}
+          {record.palpitations_during_exercise ? <Detail label="Exercise Palpitations" value="Yes 🔴" /> : null}
+          {record.steroid_usage ? <Detail label="Steroid Usage" value="Yes 🔴" /> : null}
+          {record.pre_workout_usage ? <Detail label="High-Stim Preworkout" value="Yes 🔴" /> : null}
+          {record.energy_drink_consumption ? <Detail label="Excessive Energy Drinks" value="Yes 🔴" /> : null}
+          {record.dehydration_episodes ? <Detail label="Dehydration Episodes" value="Yes 🔴" /> : null}
+          {record.overtraining_symptoms ? <Detail label="Overtraining Symptoms" value="Yes 🔴" /> : null}
+          {record.recent_fainting_episodes ? <Detail label="Recent Fainting Spells" value="Yes 🔴" /> : null}
+          {record.current_medication ? <Detail label="Current Medication" value={record.current_medication} /> : null}
           
           <Detail
             label="Assessed At"
