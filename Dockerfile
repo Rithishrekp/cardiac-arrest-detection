@@ -17,6 +17,7 @@ WORKDIR /app
 # Install system dependencies (needed for compiling python packages if any)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements and install them
