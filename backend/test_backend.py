@@ -25,6 +25,32 @@ def test_api_endpoints():
     assert res_data["ml_engine_ready"] is True
     print("[OK] Health check passed.")
     
+    # 1.1 Register test user
+    print("\n---> Testing POST /auth/register...")
+    reg_payload = {
+        "email": "testuser@cardio.org",
+        "password": "testpassword123",
+        "full_name": "Dr. Test User"
+    }
+    response = client.post("/auth/register", json=reg_payload)
+    if response.status_code == 400:
+        print("User already exists, attempting login...")
+        login_payload = {
+            "email": "testuser@cardio.org",
+            "password": "testpassword123"
+        }
+        response = client.post("/auth/login", json=login_payload)
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 200
+        
+    auth_data = response.json()
+    assert "token" in auth_data
+    assert "user" in auth_data
+    token = auth_data["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    print("[OK] Authentication setup passed. Token:", token)
+
     # 2. Prediction request test
     print("\n---> Testing POST /predict (First Assessment)...")
     payload = {
@@ -49,7 +75,9 @@ def test_api_endpoints():
         "syncope": 0.0,
         "pectus_excavatum": 0.0
     }
-    response = client.post("/predict", json=payload)
+    response = client.post("/predict", json=payload, headers=headers)
+    if response.status_code != 200:
+        print("FAIL DETAILED RESPONSE:", response.status_code, response.text)
     assert response.status_code == 200
     res_data = response.json()
     print("Response keys:", list(res_data.keys()))
@@ -85,7 +113,7 @@ def test_api_endpoints():
         "syncope": 0.0,
         "pectus_excavatum": 0.0
     }
-    response = client.post("/predict", json=payload_2)
+    response = client.post("/predict", json=payload_2, headers=headers)
     assert response.status_code == 200
     res_data_2 = response.json()
     assert res_data_2["record"]["rr_interval"] == 800.0
@@ -93,7 +121,7 @@ def test_api_endpoints():
     
     # 4. History endpoint test
     print("\n---> Testing GET /history...")
-    response = client.get("/history?search=Test")
+    response = client.get("/history?search=Test", headers=headers)
     assert response.status_code == 200
     history_list = response.json()
     print(f"Found {len(history_list)} records matching 'Test'.")
@@ -102,13 +130,13 @@ def test_api_endpoints():
     
     # 5. Stats endpoint test
     print("\n---> Testing GET /history/stats...")
-    response = client.get("/history/stats")
+    response = client.get("/history/stats", headers=headers)
     assert response.status_code == 200
     stats = response.json()
     print("Stats:", stats)
     assert stats["total_assessments"] >= 2
     print("[OK] Dashboard stats calculation passed.")
-
+ 
     # 6. Correlations endpoint test
     print("\n---> Testing GET /history/correlations...")
     response = client.get("/history/correlations")
@@ -118,31 +146,64 @@ def test_api_endpoints():
     assert len(corrs) > 0
     print("[OK] Correlation list endpoint passed.")
     
+    # 7. Model Info endpoint test
+    print("\n---> Testing GET /model-info...")
+    response = client.get("/model-info")
+    assert response.status_code == 200
+    model_info = response.json()
+    print("Model Info:", model_info)
+    assert "algorithm" in model_info
+    assert "accuracy" in model_info
+    print("[OK] Model info endpoint passed.")
+ 
+    # 8. Analytics endpoint test
+    print("\n---> Testing GET /analytics...")
+    response = client.get("/analytics", headers=headers)
+    assert response.status_code == 200
+    analytics = response.json()
+    print("Analytics:", analytics)
+    assert "total_predictions" in analytics
+    assert "risk_distribution" in analytics
+    assert "most_common_risk_factors" in analytics
+    print("[OK] Analytics endpoint passed.")
+ 
+    # 9. PDF Report generation endpoint test
+    print("\n---> Testing POST /generate-report...")
+    record_id = history_list[0]["id"]
+    response = client.post("/generate-report", json={"record_id": record_id}, headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    pdf_content = response.content
+    print(f"Generated PDF file size: {len(pdf_content)} bytes")
+    assert len(pdf_content) > 1000
+    print("[OK] PDF report generation passed.")
+    
     print("\n" + "="*60)
     print("ALL API INTEGRATION TESTS PASSED SUCCESSFULLY!")
     print("="*60 + "\n")
-
+ 
 if __name__ == "__main__":
     # Ensure test database is clean or set up
     Base.metadata.create_all(bind=engine)
     
-    # Pre-test cleanup to remove any stale test patient data
+    # Pre-test cleanup to remove any stale test patient and user data
     from app.database import SessionLocal
-    from app.models import PredictionRecord
-    print("Pre-test cleanup: removing old test patient data...")
+    from app.models import PredictionRecord, User
+    print("Pre-test cleanup: removing old test patient and user data...")
     db = SessionLocal()
     try:
         db.query(PredictionRecord).filter(
             (PredictionRecord.patient_id == "PAT-999") | 
             (PredictionRecord.patient_name == "Test Patient")
         ).delete()
+        db.query(User).filter(User.email == "testuser@cardio.org").delete()
         db.commit()
     except Exception as e:
         db.rollback()
         print(f"Warning: Pre-test cleanup failed: {e}")
     finally:
         db.close()
-
+ 
     try:
         test_api_endpoints()
     except AssertionError as e:
@@ -155,15 +216,16 @@ if __name__ == "__main__":
         sys.exit(1)
     finally:
         # Post-test cleanup to leave the database clean
-        print("Post-test cleanup: removing test patient data...")
+        print("Post-test cleanup: removing test patient and user data...")
         db = SessionLocal()
         try:
-            deleted = db.query(PredictionRecord).filter(
+            deleted_records = db.query(PredictionRecord).filter(
                 (PredictionRecord.patient_id == "PAT-999") | 
                 (PredictionRecord.patient_name == "Test Patient")
             ).delete()
+            deleted_user = db.query(User).filter(User.email == "testuser@cardio.org").delete()
             db.commit()
-            print(f"Successfully cleaned up {deleted} test records.")
+            print(f"Successfully cleaned up {deleted_records} test records and {deleted_user} test users.")
         except Exception as e:
             db.rollback()
             print(f"Warning: Post-test cleanup failed: {e}")

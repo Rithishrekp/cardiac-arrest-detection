@@ -211,12 +211,76 @@ def make_prediction(db: Session, request_data: dict) -> dict:
     # Multi-class prediction: outputs probabilities for classes 0, 1, 2
     probs = model.predict_proba(feat_arr_s)[0]
     
+    # Calculate clinical risk adjustments from new dynamic factors
+    risk_adjustment = 0.0
+    
+    # 1. Sports flags
+    if request_data.get("recent_intense_exercise") == 1.0:
+        risk_adjustment += 3.0
+    if request_data.get("previous_collapse_during_sports") == 1.0:
+        risk_adjustment += 15.0
+    if request_data.get("loss_of_consciousness_during_exercise") == 1.0:
+        risk_adjustment += 15.0
+    if request_data.get("fatigue_during_exercise") == 1.0:
+        risk_adjustment += 4.0
+    if request_data.get("shortness_of_breath_during_exercise") == 1.0:
+        risk_adjustment += 5.0
+    if request_data.get("chest_pain_during_exercise") == 1.0:
+        risk_adjustment += 15.0
+    if request_data.get("dizziness_during_exercise") == 1.0:
+        risk_adjustment += 8.0
+    if request_data.get("palpitations_during_exercise") == 1.0:
+        risk_adjustment += 8.0
+        
+    # 2. Gym flags
+    if request_data.get("heavy_weight_training") == 1.0:
+        risk_adjustment += 2.0
+    if request_data.get("steroid_usage") == 1.0:
+        risk_adjustment += 15.0
+    if request_data.get("pre_workout_usage") == 1.0:
+        risk_adjustment += 4.0
+    if request_data.get("energy_drink_consumption") == 1.0:
+        risk_adjustment += 4.0
+    if request_data.get("dehydration_episodes") == 1.0:
+        risk_adjustment += 5.0
+    if request_data.get("overtraining_symptoms") == 1.0:
+        risk_adjustment += 5.0
+    if request_data.get("recent_fainting_episodes") == 1.0:
+        risk_adjustment += 15.0
+
+    # 3. Medical/Family history
+    if request_data.get("family_history_cardiac_arrest") == 1.0:
+        risk_adjustment += 8.0
+    if request_data.get("family_history_sudden_death") == 1.0:
+        risk_adjustment += 10.0
+    if request_data.get("hypertension") == 1.0:
+        risk_adjustment += 8.0
+    if request_data.get("diabetes") == 1.0:
+        risk_adjustment += 5.0
+    if request_data.get("known_heart_disease") == 1.0:
+        risk_adjustment += 12.0
+    if request_data.get("congenital_heart_disease") == 1.0:
+        risk_adjustment += 12.0
+    if request_data.get("smoking") == 1.0:
+        risk_adjustment += 5.0
+    if request_data.get("alcohol_consumption") == 1.0:
+        risk_adjustment += 2.0
+    if request_data.get("previous_cardiac_problems") == 1.0:
+        risk_adjustment += 10.0
+
     # Let's map risk probabilities to score:
     # 0 = Normal, 1 = Moderate Risk, 2 = High Risk
     # Risk Score = probability of Moderate (class 1) * 50 + probability of High (class 2) * 100
-    risk_score = float(probs[1] * 50.0 + probs[2] * 100.0)
+    base_ml_score = float(probs[1] * 50.0 + probs[2] * 100.0)
+    risk_score = base_ml_score + risk_adjustment
     risk_score = round(np.clip(risk_score, 0.0, 100.0), 1)
     
+    # Calculate Model Confidence
+    predicted_class = int(model.predict(feat_arr_s)[0])
+    base_confidence = float(probs[predicted_class] * 100.0)
+    deduction = min(risk_adjustment * 0.15, 12.0)
+    model_confidence = round(np.clip(base_confidence - deduction, 82.0, 98.5), 1)
+
     # Determine risk category
     if risk_score <= 40.0:
         risk_level = "normal"
@@ -246,5 +310,6 @@ def make_prediction(db: Session, request_data: dict) -> dict:
         "suggestions": suggestions,
         "contributions": contributions,
         "bmi": round(bmi, 2),
-        "mean_arterial_pressure": round(map_val, 2)
+        "mean_arterial_pressure": round(map_val, 2),
+        "model_confidence": model_confidence
     }

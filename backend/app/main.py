@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import prediction, history
+from .routes import prediction, history, auth
 from .services.prediction_service import get_engine
 
 # 1. Create SQLite tables on startup
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 # 3. Register Routers
+app.include_router(auth.router)
 app.include_router(prediction.router)
 app.include_router(history.router)
 

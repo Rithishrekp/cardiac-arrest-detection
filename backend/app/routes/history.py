@@ -6,9 +6,10 @@ import os
 import pandas as pd
 import joblib
 from ..database import get_db
-from ..models import PredictionRecord
+from ..models import PredictionRecord, User
 from ..schemas import PredictionResponse, PredictionResultResponse, DashboardStats
 from ..services.prediction_service import get_health_suggestions
+from .auth import get_current_user
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
@@ -65,10 +66,11 @@ def get_dataset_correlations():
 def get_prediction_history(
     search: Optional[str] = None,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve previous prediction records, sorted from newest to oldest."""
-    query = db.query(PredictionRecord)
+    query = db.query(PredictionRecord).filter(PredictionRecord.user_id == current_user.id)
     if search:
         # Filter by patient_name or patient_id (case-insensitive)
         query = query.filter(
@@ -79,20 +81,37 @@ def get_prediction_history(
     records = query.order_by(PredictionRecord.created_at.desc()).limit(limit).all()
     return records
 
+
 @router.get("/stats", response_model=DashboardStats)
-def get_dashboard_statistics(db: Session = Depends(get_db)):
+def get_dashboard_statistics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Calculate aggregated metrics for the dashboard home page."""
     try:
-        total = db.query(PredictionRecord).count()
-        normal = db.query(PredictionRecord).filter(PredictionRecord.risk_level == "normal").count()
-        medium = db.query(PredictionRecord).filter(PredictionRecord.risk_level == "medium").count()
-        critical = db.query(PredictionRecord).filter(PredictionRecord.risk_level == "critical").count()
+        total = db.query(PredictionRecord).filter(PredictionRecord.user_id == current_user.id).count()
+        normal = db.query(PredictionRecord).filter(
+            PredictionRecord.user_id == current_user.id,
+            PredictionRecord.risk_level == "normal"
+        ).count()
+        medium = db.query(PredictionRecord).filter(
+            PredictionRecord.user_id == current_user.id,
+            PredictionRecord.risk_level == "medium"
+        ).count()
+        critical = db.query(PredictionRecord).filter(
+            PredictionRecord.user_id == current_user.id,
+            PredictionRecord.risk_level == "critical"
+        ).count()
         
-        avg_score_res = db.query(func.avg(PredictionRecord.risk_score)).scalar()
+        avg_score_res = db.query(func.avg(PredictionRecord.risk_score)).filter(
+            PredictionRecord.user_id == current_user.id
+        ).scalar()
         avg_score = round(float(avg_score_res), 1) if avg_score_res is not None else 0.0
         
-        # Fetch 5 most recent records
-        recent = db.query(PredictionRecord).order_by(PredictionRecord.created_at.desc()).limit(5).all()
+        # Fetch 5 most recent records for this user
+        recent = db.query(PredictionRecord).filter(
+            PredictionRecord.user_id == current_user.id
+        ).order_by(PredictionRecord.created_at.desc()).limit(5).all()
         
         return {
             "total_assessments": total,
@@ -108,14 +127,22 @@ def get_dashboard_statistics(db: Session = Depends(get_db)):
             detail=f"Failed to calculate stats: {str(e)}"
         )
 
+
 @router.get("/{record_id}", response_model=PredictionResultResponse)
-def get_prediction_by_id(record_id: int, db: Session = Depends(get_db)):
+def get_prediction_by_id(
+    record_id: int, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Fetch details of a single historical assessment record, including recommendations."""
-    record = db.query(PredictionRecord).filter(PredictionRecord.id == record_id).first()
+    record = db.query(PredictionRecord).filter(
+        PredictionRecord.id == record_id,
+        PredictionRecord.user_id == current_user.id
+    ).first()
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Prediction record with ID {record_id} not found."
+            detail=f"Prediction record with ID {record_id} not found or unauthorized access."
         )
         
     # Reconstruct the dynamic suggestions from the stored risk level
@@ -151,7 +178,6 @@ def get_prediction_by_id(record_id: int, db: Session = Depends(get_db)):
         "pectus_excavatum": record.pectus_excavatum if record.pectus_excavatum is not None else 0.0
     }
 
-    
     from ..services.prediction_service import calculate_feature_contributions
     contributions = calculate_feature_contributions(record_dict, feature_cols, importances, means, stds)
     

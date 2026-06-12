@@ -31,6 +31,43 @@ class PredictionRequest(BaseModel):
     syncope: float = Field(0.0, description="Syncope / fainting episodes history (0.0 or 1.0)")
     pectus_excavatum: float = Field(0.0, description="Pectus Excavatum skeletal issue (0.0 or 1.0)")
 
+    # Upgraded Lifestyle and Sports/Gym dynamic features
+    person_type: Optional[str] = "sports"
+    years_sports_experience: Optional[float] = 0.0
+    training_hours_per_week: Optional[float] = 0.0
+    competition_level: Optional[str] = "Amateur"
+    recent_intense_exercise: Optional[float] = 0.0
+    previous_collapse_during_sports: Optional[float] = 0.0
+    fatigue_during_exercise: Optional[float] = 0.0
+    loss_of_consciousness_during_exercise: Optional[float] = 0.0
+    shortness_of_breath_during_exercise: Optional[float] = 0.0
+    chest_pain_during_exercise: Optional[float] = 0.0
+    dizziness_during_exercise: Optional[float] = 0.0
+    palpitations_during_exercise: Optional[float] = 0.0
+
+    workout_frequency: Optional[float] = 0.0
+    heavy_weight_training: Optional[float] = 0.0
+    cardio_frequency: Optional[float] = 0.0
+    steroid_usage: Optional[float] = 0.0
+    supplement_usage: Optional[float] = 0.0
+    pre_workout_usage: Optional[float] = 0.0
+    energy_drink_consumption: Optional[float] = 0.0
+    dehydration_episodes: Optional[float] = 0.0
+    overtraining_symptoms: Optional[float] = 0.0
+    recent_fainting_episodes: Optional[float] = 0.0
+
+    family_history_cardiac_arrest: Optional[float] = 0.0
+    family_history_sudden_death: Optional[float] = 0.0
+    hypertension: Optional[float] = 0.0
+    diabetes: Optional[float] = 0.0
+    known_heart_disease: Optional[float] = 0.0
+    congenital_heart_disease: Optional[float] = 0.0
+    smoking: Optional[float] = 0.0
+    alcohol_consumption: Optional[float] = 0.0
+    previous_cardiac_problems: Optional[float] = 0.0
+    current_medication: Optional[str] = ""
+    user_id: Optional[int] = None
+
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -53,7 +90,13 @@ class PredictionRequest(BaseModel):
                 "family_history_heart_disease": 0.0,
                 "personal_history_heart_disease": 0.0,
                 "syncope": 0.0,
-                "pectus_excavatum": 0.0
+                "pectus_excavatum": 0.0,
+                "person_type": "sports",
+                "years_sports_experience": 5.0,
+                "training_hours_per_week": 8.0,
+                "competition_level": "Professional",
+                "recent_intense_exercise": 1.0,
+                "previous_collapse_during_sports": 0.0
             }
         }
     }
@@ -87,11 +130,47 @@ class PredictionResponse(BaseModel):
     syncope: Optional[float] = 0.0
     pectus_excavatum: Optional[float] = 0.0
 
+    person_type: Optional[str] = "sports"
+    years_sports_experience: Optional[float] = 0.0
+    training_hours_per_week: Optional[float] = 0.0
+    competition_level: Optional[str] = "Amateur"
+    recent_intense_exercise: Optional[float] = 0.0
+    previous_collapse_during_sports: Optional[float] = 0.0
+    fatigue_during_exercise: Optional[float] = 0.0
+    loss_of_consciousness_during_exercise: Optional[float] = 0.0
+    shortness_of_breath_during_exercise: Optional[float] = 0.0
+    chest_pain_during_exercise: Optional[float] = 0.0
+    dizziness_during_exercise: Optional[float] = 0.0
+    palpitations_during_exercise: Optional[float] = 0.0
+
+    workout_frequency: Optional[float] = 0.0
+    heavy_weight_training: Optional[float] = 0.0
+    cardio_frequency: Optional[float] = 0.0
+    steroid_usage: Optional[float] = 0.0
+    supplement_usage: Optional[float] = 0.0
+    pre_workout_usage: Optional[float] = 0.0
+    energy_drink_consumption: Optional[float] = 0.0
+    dehydration_episodes: Optional[float] = 0.0
+    overtraining_symptoms: Optional[float] = 0.0
+    recent_fainting_episodes: Optional[float] = 0.0
+
+    family_history_cardiac_arrest: Optional[float] = 0.0
+    family_history_sudden_death: Optional[float] = 0.0
+    hypertension: Optional[float] = 0.0
+    diabetes: Optional[float] = 0.0
+    known_heart_disease: Optional[float] = 0.0
+    congenital_heart_disease: Optional[float] = 0.0
+    smoking: Optional[float] = 0.0
+    alcohol_consumption: Optional[float] = 0.0
+    previous_cardiac_problems: Optional[float] = 0.0
+    current_medication: Optional[str] = ""
+
     risk_score: float
     risk_level: str
     risk_label: str
     ui_indicator: str
-    ensemble_method: str
+    model_confidence: Optional[float] = 95.0
+    user_id: Optional[int] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -119,3 +198,26 @@ class DashboardStats(BaseModel):
     critical_count: int
     average_risk_score: float
     recent_assessments: List[PredictionResponse]
+
+
+# Authentication schemas
+class UserRegister(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class AuthResponse(BaseModel):
+    user: UserResponse
+    token: str
