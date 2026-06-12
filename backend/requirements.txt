@@ -9,3 +9,5 @@ scikit-learn
 xgboost
 lightgbm
 joblib
+reportlab
+aiofiles

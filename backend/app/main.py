@@ -45,10 +45,19 @@ def startup_event():
     except Exception as e:
         print(f"Critical error loading ML model on startup: {str(e)}")
 
-@app.get("/")
-def read_root():
-    return {
-        "message": "Welcome to Cardiac Risk Prediction API.",
-        "docs": "/docs",
-        "health": "/health"
-    }
+from fastapi.staticfiles import StaticFiles
+
+# Serve frontend static assets in production if compiled
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist"))
+if os.path.exists(frontend_dist):
+    print(f"Mounting production frontend static files from: {frontend_dist}")
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+else:
+    print("Static frontend dist folder not found. Running in standalone API mode.")
+    @app.get("/")
+    def read_root():
+        return {
+            "message": "Welcome to Cardiac Risk Prediction API.",
+            "docs": "/docs",
+            "health": "/health"
+        }
