@@ -3,7 +3,7 @@ services:
     name: cardiac-risk-prediction-system
     env: docker
     plan: free
-    dockerFilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
         value: 8000
