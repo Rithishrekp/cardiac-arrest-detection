@@ -16,8 +16,8 @@ def test_api_endpoints():
     print("="*60)
     
     # 1. Health check test
-    print("\n---> Testing GET /health...")
-    response = client.get("/health")
+    print("\n---> Testing GET /api/health...")
+    response = client.get("/api/health")
     assert response.status_code == 200
     res_data = response.json()
     print("Response:", res_data)
@@ -26,20 +26,20 @@ def test_api_endpoints():
     print("[OK] Health check passed.")
     
     # 1.1 Register test user
-    print("\n---> Testing POST /auth/register...")
+    print("\n---> Testing POST /api/auth/register...")
     reg_payload = {
         "email": "testuser@cardio.org",
         "password": "testpassword123",
         "full_name": "Dr. Test User"
     }
-    response = client.post("/auth/register", json=reg_payload)
+    response = client.post("/api/auth/register", json=reg_payload)
     if response.status_code == 400:
         print("User already exists, attempting login...")
         login_payload = {
             "email": "testuser@cardio.org",
             "password": "testpassword123"
         }
-        response = client.post("/auth/login", json=login_payload)
+        response = client.post("/api/auth/login", json=login_payload)
         assert response.status_code == 200
     else:
         assert response.status_code == 200
@@ -52,7 +52,7 @@ def test_api_endpoints():
     print("[OK] Authentication setup passed. Token:", token)
 
     # 2. Prediction request test
-    print("\n---> Testing POST /predict (First Assessment)...")
+    print("\n---> Testing POST /api/predict (First Assessment)...")
     payload = {
         "patient_id": "PAT-999",
         "patient_name": "Test Patient",
@@ -75,7 +75,7 @@ def test_api_endpoints():
         "syncope": 0.0,
         "pectus_excavatum": 0.0
     }
-    response = client.post("/predict", json=payload, headers=headers)
+    response = client.post("/api/predict", json=payload, headers=headers)
     if response.status_code != 200:
         print("FAIL DETAILED RESPONSE:", response.status_code, response.text)
     assert response.status_code == 200
@@ -90,7 +90,7 @@ def test_api_endpoints():
     print(f"[OK] Prediction passed. Risk level: {res_data['record']['risk_level']} ({res_data['record']['risk_score']}%)")
     
     # 3. Second prediction for same patient
-    print("\n---> Testing POST /predict (Second Assessment for same patient)...")
+    print("\n---> Testing POST /api/predict (Second Assessment for same patient)...")
     payload_2 = {
         "patient_id": "PAT-999",
         "patient_name": "Test Patient",
@@ -113,15 +113,15 @@ def test_api_endpoints():
         "syncope": 0.0,
         "pectus_excavatum": 0.0
     }
-    response = client.post("/predict", json=payload_2, headers=headers)
+    response = client.post("/api/predict", json=payload_2, headers=headers)
     assert response.status_code == 200
     res_data_2 = response.json()
     assert res_data_2["record"]["rr_interval"] == 800.0
     print("[OK] Multi-feature prediction passed.")
     
     # 4. History endpoint test
-    print("\n---> Testing GET /history...")
-    response = client.get("/history?search=Test", headers=headers)
+    print("\n---> Testing GET /api/history...")
+    response = client.get("/api/history?search=Test", headers=headers)
     assert response.status_code == 200
     history_list = response.json()
     print(f"Found {len(history_list)} records matching 'Test'.")
@@ -129,8 +129,8 @@ def test_api_endpoints():
     print("[OK] History listing passed.")
     
     # 5. Stats endpoint test
-    print("\n---> Testing GET /history/stats...")
-    response = client.get("/history/stats", headers=headers)
+    print("\n---> Testing GET /api/history/stats...")
+    response = client.get("/api/history/stats", headers=headers)
     assert response.status_code == 200
     stats = response.json()
     print("Stats:", stats)
@@ -138,8 +138,8 @@ def test_api_endpoints():
     print("[OK] Dashboard stats calculation passed.")
  
     # 6. Correlations endpoint test
-    print("\n---> Testing GET /history/correlations...")
-    response = client.get("/history/correlations")
+    print("\n---> Testing GET /api/history/correlations...")
+    response = client.get("/api/history/correlations")
     assert response.status_code == 200
     corrs = response.json()
     print(f"Fetched {len(corrs)} dataset feature correlation strength rankings.")
@@ -147,8 +147,8 @@ def test_api_endpoints():
     print("[OK] Correlation list endpoint passed.")
     
     # 7. Model Info endpoint test
-    print("\n---> Testing GET /model-info...")
-    response = client.get("/model-info")
+    print("\n---> Testing GET /api/model-info...")
+    response = client.get("/api/model-info")
     assert response.status_code == 200
     model_info = response.json()
     print("Model Info:", model_info)
@@ -157,8 +157,8 @@ def test_api_endpoints():
     print("[OK] Model info endpoint passed.")
  
     # 8. Analytics endpoint test
-    print("\n---> Testing GET /analytics...")
-    response = client.get("/analytics", headers=headers)
+    print("\n---> Testing GET /api/analytics...")
+    response = client.get("/api/analytics", headers=headers)
     assert response.status_code == 200
     analytics = response.json()
     print("Analytics:", analytics)
@@ -168,9 +168,9 @@ def test_api_endpoints():
     print("[OK] Analytics endpoint passed.")
  
     # 9. PDF Report generation endpoint test
-    print("\n---> Testing POST /generate-report...")
+    print("\n---> Testing POST /api/generate-report...")
     record_id = history_list[0]["id"]
-    response = client.post("/generate-report", json={"record_id": record_id}, headers=headers)
+    response = client.post("/api/generate-report", json={"record_id": record_id}, headers=headers)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     pdf_content = response.content

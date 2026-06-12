@@ -28,9 +28,9 @@ app.add_middleware(
 )
 
 # 3. Register Routers
-app.include_router(auth.router)
-app.include_router(prediction.router)
-app.include_router(history.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(prediction.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
 
 @app.on_event("startup")
 def startup_event():
